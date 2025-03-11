@@ -5,7 +5,7 @@ bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int
     addrinfo addrreq {0};
     addrreq.ai_family = AF_INET;
     addrreq.ai_socktype = SOCK_STREAM;
-    addrreq.ai_flags = AI_ADDRCONFIG;
+    //addrreq.ai_flags = AI_ADDRCONFIG; // not sure
 
     addrinfo *res {nullptr};
     auto status = getaddrinfo(target, nullptr, &addrreq, &res);
@@ -31,7 +31,7 @@ bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int
             reinterpret_cast<void*>(&reinterpret_cast<sockaddr_in*>(res->ai_addr)->sin_addr),
         //    : reinterpret_cast<void*>(&reinterpret_cast<sockaddr_in6*>(res->ai_addr)->sin6_addr),
         resolved_name,
-        INET6_ADDRSTRLEN
+        INET6_ADDRSTRLEN    // because capable of both
     );
     
     freeaddrinfo(res);
