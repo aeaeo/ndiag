@@ -1,8 +1,14 @@
-#include <cstdio>	// cpp headers (well c ones actually)
+#pragma once
+
+#include <cstdio>	// c/cpp headers
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <cerrno>
+
+#ifndef __linux__
+#error wrong platform
+#endif
 
 #include <netinet/ip.h>	// unix headers
 #include <sys/types.h>
@@ -11,12 +17,5 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#ifndef __FOO__
-    #ifdef WIN32
-        #define __FOO__  __FUNCTION__
-    #else
-        #define __FOO__  __func__
-    #endif
-#endif
-
-void trace_route(const char*);
+bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int& ipver, char* resolved_name);
+void trace_route(const char* target, const char* netint, int hops);
