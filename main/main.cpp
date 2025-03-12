@@ -6,7 +6,8 @@ int main(int argc, char** argv)
 	// int hops_max = 0;
 	//
 	// here parse arguments
-	trace_route(argv[1], nullptr, 0);
+	if (!trace_route(argv[1], nullptr, 0))
+		return EXIT_FAILURE;
 
 	return EXIT_SUCCESS;
 }

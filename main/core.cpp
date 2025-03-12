@@ -12,7 +12,7 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,
         fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, gai_strerror(status));
         return false;
     }
-
+    //puts("testword\n");
     if (res->ai_family != AF_INET)
         return false;
 
@@ -35,14 +35,14 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,
     return true;
 }
 
-void trace_route(const char* target, const char* netint, int hops)
+bool trace_route(const char* target, const char* netint, int hops)
 {
 	sockaddr_in dest_sockaddrin {0};
     char resolvedIP[INET_ADDRSTRLEN];
-    
+
     if (!resolve_fqdn(target, dest_sockaddrin, resolvedIP))
-        return;    
-    
+        return false;    
+
     printf("name: %s\n", resolvedIP);
 
 	/*domain: INET, type: RAW, proto: ICMP*/
@@ -50,11 +50,13 @@ void trace_route(const char* target, const char* netint, int hops)
 	if (sockFD < 0) {
 		fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, std::strerror(errno));
 		exit(EXIT_FAILURE);
+        return false;
 	}
-    
+
 
     /* ... */
 
 	close(sockFD);	// close fd
+    return true;
 }
 

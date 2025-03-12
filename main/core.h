@@ -18,4 +18,4 @@
 #include <netdb.h>
 
 bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any,/* int& ipver,*/ char* resolved_ip);
-void trace_route(const char* target, const char* netint, int hops);
+bool trace_route(const char* target, const char* netint, int hops);
