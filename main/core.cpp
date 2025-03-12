@@ -1,6 +1,6 @@
 #include "core.h"
 
-bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int& ipver, char* resolved_ip)
+bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin_any, int& ipver, char* resolved_ip)
 {
     addrinfo addrreq {0};
     addrreq.ai_family = AF_INET;
@@ -37,9 +37,9 @@ bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int
 
 void trace_route(const char* target, const char* netint, int hops)
 {
-	sockaddr_storage dest_sockaddrin {0};
+	sockaddr_in dest_sockaddrin {0};
     int ipver{};
-    char resolvedIP[INET6_ADDRSTRLEN];
+    char resolvedIP[INET_ADDRSTRLEN];
     
     if (resolve_fqdn(target, dest_sockaddrin, ipver, resolvedIP))
         printf("name: %s\n", resolvedIP);
