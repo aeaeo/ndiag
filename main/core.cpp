@@ -1,6 +1,6 @@
 #include "core.h"
 
-bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin_any, int& ipver, char* resolved_ip)
+bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin_any,/*int& ipver,*/ char* resolved_ip)
 {
     addrinfo addrreq {0};
     addrreq.ai_family = AF_INET;
@@ -21,7 +21,7 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin_any, int& ipv
         res->ai_addr,
         sizeof(sockaddr_in)   // 16
     );
-    ipver = res->ai_family;
+    //ipver = res->ai_family;
 
     inet_ntop(
         res->ai_family,
@@ -38,10 +38,9 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin_any, int& ipv
 void trace_route(const char* target, const char* netint, int hops)
 {
 	sockaddr_in dest_sockaddrin {0};
-    int ipver{};
     char resolvedIP[INET_ADDRSTRLEN];
     
-    if (resolve_fqdn(target, dest_sockaddrin, ipver, resolvedIP))
+    if (resolve_fqdn(target, dest_sockaddrin, resolvedIP))
         printf("name: %s\n", resolvedIP);
 
 	/*domain: INET, type: RAW, proto: ICMP*/
