@@ -5,7 +5,6 @@ bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int
     addrinfo addrreq {0};
     addrreq.ai_family = AF_INET;
     addrreq.ai_socktype = SOCK_STREAM;
-    //addrreq.ai_flags = AI_ADDRCONFIG; // not sure
 
     addrinfo *res {nullptr};
     auto status = getaddrinfo(target, nullptr, &addrreq, &res);
