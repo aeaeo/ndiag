@@ -1,6 +1,6 @@
 #include "core.h"
 
-bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int& ipver, char* resolved_name)
+bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int& ipver, char* resolved_ip)
 {
     addrinfo addrreq {0};
     addrreq.ai_family = AF_INET;
@@ -14,26 +14,23 @@ bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int
         return false;
     }
 
-    if (res->ai_family != AF_INET/* && res->ai_family != AF_INET6*/)
+    if (res->ai_family != AF_INET)
         return false;
 
-    memcpy(&dest_sockaddrin_any,
-            res->ai_addr,
-//            (res->ai_family == AF_INET)
-                sizeof(sockaddr_in)   // 16
-//                : sizeof(sockaddr_in6)  // 28
+    memcpy(
+        &dest_sockaddrin_any,
+        res->ai_addr,
+        sizeof(sockaddr_in)   // 16
     );
     ipver = res->ai_family;
 
     inet_ntop(
         res->ai_family,
-        //(res->ai_family == AF_INET) 
-            reinterpret_cast<void*>(&reinterpret_cast<sockaddr_in*>(res->ai_addr)->sin_addr),
-        //    : reinterpret_cast<void*>(&reinterpret_cast<sockaddr_in6*>(res->ai_addr)->sin6_addr),
-        resolved_name,
-        INET6_ADDRSTRLEN    // because capable of both
+        reinterpret_cast<void*>(&reinterpret_cast<sockaddr_in*>(res->ai_addr)->sin_addr),
+        resolved_ip,
+        INET_ADDRSTRLEN    // because capable of both
     );
-    
+
     freeaddrinfo(res);
 
     return true;
@@ -42,11 +39,11 @@ bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any, int
 void trace_route(const char* target, const char* netint, int hops)
 {
 	sockaddr_storage dest_sockaddrin {0};
-    /*int ipver{};
+    int ipver{};
     char resolvedIP[INET6_ADDRSTRLEN];
     
-    resolve_fqdn(target, dest_sockaddrin, ipver, resolvedIP);
-    printf("name: %s\n", resolvedIP);*/
+    if (resolve_fqdn(target, dest_sockaddrin, ipver, resolvedIP))
+        printf("name: %s\n", resolvedIP);
 
 	/*domain: INET, type: RAW, proto: ICMP*/
 	auto sockFD = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
