@@ -17,5 +17,5 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-bool resolve_fqdn(const char* target, sockaddr_storage& dest_sockaddrin_any,/* int& ipver,*/ char* resolved_ip);
+bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin_any,/* int& ipver,*/ char* resolved_ip);
 bool trace_route(const char* target, const char* netint, int hops);

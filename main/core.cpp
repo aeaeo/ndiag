@@ -22,7 +22,7 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,
         sizeof(sockaddr_in)   // 16
     );
     //ipver = res->ai_family;
-    
+
     inet_ntop(
         res->ai_family,
         reinterpret_cast<void*>(&dest_sockaddrin.sin_addr),
@@ -46,15 +46,16 @@ bool trace_route(const char* target, const char* netint, int hops)
     printf("name: %s\n", resolvedIP);
 
 	/*domain: INET, type: RAW, proto: ICMP*/
+    // CAP_NET_RAW required
 	auto sockFD = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (sockFD < 0) {
 		fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, std::strerror(errno));
-		exit(EXIT_FAILURE);
         return false;
 	}
 
-
-    /* ... */
+//    for (int i = 0; i < hops; ++i) {
+        /* ... */
+//    }
 
 	close(sockFD);	// close fd
     return true;
