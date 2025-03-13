@@ -43,7 +43,7 @@ bool trace_route(const char* target, const char* netint, int hops)
     if (!resolve_fqdn(target, dest_sockaddrin, resolvedIP))
         return false;    
 
-    printf("name: %s\n", resolvedIP);
+    printf("Tracing route to %s (%s)\n", target, resolvedIP);
 
 	/*domain: INET, type: RAW, proto: ICMP*/
     // CAP_NET_RAW required
@@ -53,9 +53,16 @@ bool trace_route(const char* target, const char* netint, int hops)
         return false;
 	}
 
-//  for (int i = 0; i < hops; ++i) {
+    if (!setsockopt(sockFD, SOL_SOCKET, SO_BINDTODEVICE, netint, sizeof(netint))) {
+        fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, std::strerror(errno));
+        close(sockFD);
+        return false;
+    }
+
+    for (int i = 0; i < hops; ++i) {
         /* ... */
-//  }
+        
+    }
 
 	close(sockFD);	// close fd
     return true;
