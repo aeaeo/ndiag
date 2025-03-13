@@ -7,7 +7,7 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,
     addrreq.ai_socktype = SOCK_STREAM;
 
     addrinfo *res {nullptr};
-    auto status = getaddrinfo(target, nullptr, &addrreq, &res);
+    int status = getaddrinfo(target, nullptr, &addrreq, &res);
     if (status < 0) {
         fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, gai_strerror(status));
         return false;
@@ -53,9 +53,9 @@ bool trace_route(const char* target, const char* netint, int hops)
         return false;
 	}
 
-//    for (int i = 0; i < hops; ++i) {
+//  for (int i = 0; i < hops; ++i) {
         /* ... */
-//    }
+//  }
 
 	close(sockFD);	// close fd
     return true;
