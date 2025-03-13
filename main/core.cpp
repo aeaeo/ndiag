@@ -12,7 +12,7 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,
         fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, gai_strerror(status));
         return false;
     }
-    //puts("testword\n");
+    //puts("testword\n"); 
     if (res->ai_family != AF_INET)
         return false;
 
@@ -47,7 +47,7 @@ bool trace_route(const char* target, const char* netint, int hops)
 
 	/*domain: INET, type: RAW, proto: ICMP*/
     // CAP_NET_RAW required
-	auto sockFD = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
+	int sockFD = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (sockFD < 0) {
 		fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, std::strerror(errno));
         return false;
