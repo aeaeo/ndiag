@@ -9,7 +9,7 @@ bool resolve_fqdn(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,
     addrinfo *res {nullptr};
     int status = getaddrinfo(target, nullptr, &addrreq, &res);
     if (status < 0) {
-        fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, gai_strerror(status));
+        errmsg(gai_strerror(status));
         return false;
     }
     //puts("testword\n"); 
@@ -44,17 +44,17 @@ bool trace_route(const char* target, const char* netint, int hops)
         return false;    
 
     printf("Tracing route to %s (%s)\n", target, resolvedIP);
-
+ 
 	/*domain: INET, type: RAW, proto: ICMP*/
     // CAP_NET_RAW required
 	int sockFD = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (sockFD < 0) {
-		fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, std::strerror(errno));
+        errmsg(std::strerror(errno));
         return false;
 	}
 
     if (!setsockopt(sockFD, SOL_SOCKET, SO_BINDTODEVICE, netint, sizeof(netint))) {
-        fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, std::strerror(errno));
+        errmsg(std::strerror(errno));
         close(sockFD);
         return false;
     }
@@ -67,4 +67,3 @@ bool trace_route(const char* target, const char* netint, int hops)
 	close(sockFD);	// close fd
     return true;
 }
-
