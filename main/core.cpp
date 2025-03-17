@@ -36,7 +36,7 @@ uint16_t calculate_checksum(void *buf, size_t len)
     sum = (sum >> 16) + (sum & 0xFFFF);
     sum += (sum >> 16);
 
-    return static_cast<uint16_t>(~sum);
+    return ~static_cast<uint16_t>(sum);
 }
 
 
@@ -69,10 +69,12 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         return false;
     }
 
-    printf("Tracing route to %s (%s) with %d hop(s) max\n", target, resolvedIP, hops);
+    printf("Tracing route to %s (%s) with %hu hop(s) max\n", target, resolvedIP, hops);
 
     // todo: check whether IP_HDRINCL is needed or not for this sockt
     char bufo[4096], bufi[4096];
+    char ipstrbuf[INET_ADDRSTRLEN];
+    char resolved_hostnamebuf[NI_MAXHOST];    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
     sockaddr_in reply_sockaddrin;
     socklen_t reply_sockaddrin_len = sizeof(reply_sockaddrin);
 
@@ -83,7 +85,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
 
         setsockopt(sockFD, IPPROTO_IP, IP_TTL, &ttl, sizeof(uint16_t)); // time to live attr
 
-        // ntk: sizeof(iphdr) = 24
+        // ntk: sizeof(iphdr) = 20
 
         auto icmp_pack_o = reinterpret_cast<icmphdr*>(bufo);    //
         icmp_pack_o->type = ICMP_ECHO; // [0-8) ; request
@@ -101,13 +103,13 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
              0, // no flags
              reinterpret_cast<sockaddr*>(&dest_sockaddrin),
              sizeof(sockaddr)
-            ) <= 0
+            ) < 0
         ) {
             printf("sendto() error: %s\n", std::strerror(errno));   // 
             continue;
         }
 
-        auto icmp_pack_i = reinterpret_cast<icmphdr*>(bufi+20);
+        auto icmp_pack_i = reinterpret_cast<icmphdr*>(bufi+sizeof(iphdr));
         if (recvfrom(
              sockFD,
              &bufi,
@@ -123,15 +125,15 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         auto end_time = std::chrono::high_resolution_clock::now();
         auto rtt = std::chrono::duration<float, std::milli>(end_time - time_start).count();
 
-        char ipstrbuf[INET_ADDRSTRLEN]{0};
+        memset(&ipstrbuf, '\0', sizeof(ipstrbuf));
         inet_ntop(
             AF_INET,
             reinterpret_cast<void*>(&reply_sockaddrin.sin_addr),
             ipstrbuf,
             INET_ADDRSTRLEN
         );
-
-        char resolved_hostnamebuf[NI_MAXHOST]{0};    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
+        
+        memset(&resolved_hostnamebuf, '\0', sizeof(resolved_hostnamebuf));
         getnameinfo(
              reinterpret_cast<sockaddr*>(&reply_sockaddrin),
              sizeof(reply_sockaddrin),
@@ -143,10 +145,12 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         );
         printf("ttl=%hu\t| %s (%s) |\trtt=%.4f ms\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt);
 
-        if (icmp_pack_i->type == ICMP_ECHOREPLY) { // if structs are eqauel trace is complete 
+        if (icmp_pack_i->type == ICMP_ECHOREPLY) {
             printf("Reached %s (%s) with %hu hop(s)\n", target, resolvedIP, ttl);
             break;
-        }
+        }/* else if (ttl+1 > hops) {
+            printf("Failed to reach %s (%s): Limit exceeded\n", target, resolvedIP);
+        }*/
     }
 
 	close(sockFD);	// close fd
