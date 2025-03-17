@@ -33,7 +33,7 @@ bool resolve_hostname(const char* target, sockaddr_in& dest_sockaddrin,/*int& ip
     return true;
 }
 
-uint16_t calculate_checksum(void *buf, int len)
+uint16_t calculate_checksum(void *buf, size_t len)
 {
     uint16_t* u16buf = static_cast<uint16_t*>(buf);
     uint32_t sum = 0;
@@ -91,10 +91,10 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         auto icmp_pack_o = reinterpret_cast<icmphdr*>(bufo);    //
         icmp_pack_o->type = ICMP_ECHO; // [0-8) ; request
         icmp_pack_o->code = 0u;   // [8-16)
+        icmp_pack_o->checksum = 0u; // [16-32)
         icmp_pack_o->un.echo.id = getpid(); // [[32-48) // getpid() may be bad idea
         icmp_pack_o->un.echo.sequence = ttl; // [48-64)]
-        icmp_pack_o->checksum = 0;
-        icmp_pack_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmp_pack_o), sizeof(icmphdr)); // [16-32)
+        icmp_pack_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmp_pack_o), sizeof(icmphdr));
 
         auto time_start = std::chrono::high_resolution_clock::now();
         if (sendto(
