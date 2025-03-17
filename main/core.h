@@ -21,7 +21,7 @@
 
 #define errmsg(type) fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, type)
 
-bool resolve_hostname(const char* target, sockaddr_in& dest_sockaddrin,/* int& ipver,*/ char* resolved_ip);
+bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/* int& ipver,*/ char* resolved_ip);
 uint16_t calculate_checksum(void *buf, size_t len);
 bool trace_route(const char* target, const char* netint, uint16_t hops);
 

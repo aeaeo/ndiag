@@ -1,6 +1,6 @@
 #include "core.h"
 
-bool resolve_hostname(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,*/ char* resolved_ip)
+bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,*/ char* resolved_ip)
 {
     addrinfo addrreq {0};
     addrreq.ai_family = AF_INET;
@@ -12,21 +12,10 @@ bool resolve_hostname(const char* target, sockaddr_in& dest_sockaddrin,/*int& ip
         errmsg(gai_strerror(status));
         return false;
     }
-    //puts("testword\n"); 
 
-    memcpy(
-        &dest_sockaddrin,
-        res->ai_addr,
-        sizeof(sockaddr_in)   // 16
-    );
-    //ipver = res->ai_family;
+    memcpy(&dest_sockaddrin, res->ai_addr, sizeof(sockaddr_in));
 
-    inet_ntop(
-        res->ai_family,
-        reinterpret_cast<void*>(&dest_sockaddrin.sin_addr),
-        resolved_ip,
-        INET_ADDRSTRLEN
-    );
+    inet_ntop(res->ai_family, reinterpret_cast<void*>(&dest_sockaddrin.sin_addr), resolved_ip, INET_ADDRSTRLEN);
 
     freeaddrinfo(res);
 
@@ -50,15 +39,14 @@ uint16_t calculate_checksum(void *buf, size_t len)
     return static_cast<uint16_t>(~sum);
 }
 
+
 bool trace_route(const char* target, const char* netint, uint16_t hops)
 {
 	sockaddr_in dest_sockaddrin {0};
-    char resolvedIP[INET_ADDRSTRLEN];
+    char resolvedIP[INET_ADDRSTRLEN];   // or inet6_addrstrlen for both support
 
-    if (!resolve_hostname(target, dest_sockaddrin, resolvedIP))
-        return false;    
-
-    printf("Tracing route to %s (%s)\n", target, resolvedIP);
+    if (!resolve_host(target, dest_sockaddrin, resolvedIP))
+        return false;
 
 	/*domain: INET, type: RAW, proto: ICMP*/
     // CAP_NET_RAW required
@@ -73,6 +61,15 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         close(sockFD);
         return false;
     }
+
+    timeval timeout{1, 0};
+    if (setsockopt(sockFD, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout))) {
+        errmsg(std::strerror(errno));
+        close(sockFD);
+        return false;
+    }
+
+    printf("Tracing route to %s (%s) with %d hop(s) max\n", target, resolvedIP, hops);
 
     // todo: check whether IP_HDRINCL is needed or not for this sockt
     char bufo[4096], bufi[4096];
@@ -103,11 +100,11 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
              sizeof(icmphdr),
              0, // no flags
              reinterpret_cast<sockaddr*>(&dest_sockaddrin),
-             sizeof(sockaddr_in)
+             sizeof(sockaddr)
             ) <= 0
         ) {
             printf("sendto() error: %s\n", std::strerror(errno));   // 
-            continue;   // close(sockFD); return false;
+            continue;
         }
 
         auto icmp_pack_i = reinterpret_cast<icmphdr*>(bufi+20);
@@ -119,8 +116,8 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
              reinterpret_cast<sockaddr*>(&reply_sockaddrin), 
              &reply_sockaddrin_len
             ) < 0
-        ) { // bug: stuck!!
-            printf("ttl %d request timed out\n", ttl);
+        ) {
+            printf("ttl=%hu\t| recvfrom() timeout error: %s\n", ttl, std::strerror(errno));
             continue;
         }
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -135,7 +132,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         );
 
         char resolved_hostnamebuf[NI_MAXHOST]{0};    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
-        if (getnameinfo(
+        getnameinfo(
              reinterpret_cast<sockaddr*>(&reply_sockaddrin),
              sizeof(reply_sockaddrin),
              resolved_hostnamebuf,
@@ -143,24 +140,13 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
              nullptr,
              0,
              0// no flags
-            ) == 0
-        ) {
-            printf("ttl %d %s (%s) %f ms\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt);
-        } else { // failed to resolve, also always not the case wtf
-            printf("ttl %d %s %f ms\n", ttl, ipstrbuf, rtt);
-        }
+        );
+        printf("ttl=%hu\t| %s (%s) |\trtt=%.4f ms\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt);
 
-        /*if (memcmp(
-             &reply_sockaddrin,
-             &dest_sockaddrin,
-             sizeof(sockaddr_in)
-            )
-        ) { // shit
-        //if (icmp_pack_i->type != ICMP_ECHOREPLY) { // if structs are eqauel trace is complete 
-            printf("trace done\n");
+        if (icmp_pack_i->type == ICMP_ECHOREPLY) { // if structs are eqauel trace is complete 
+            printf("Reached %s (%s) with %hu hop(s)\n", target, resolvedIP, ttl);
             break;
-        }   // !!!segfault!!!*/
-        //puts("puts2()\n");
+        }
     }
 
 	close(sockFD);	// close fd
