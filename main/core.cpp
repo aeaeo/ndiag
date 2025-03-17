@@ -33,14 +33,21 @@ bool resolve_hostname(const char* target, sockaddr_in& dest_sockaddrin,/*int& ip
     return true;
 }
 
-uint16_t calculate_checksum(uint16_t *buf, int nwords)
+uint16_t calculate_checksum(void *buf, int len)
 {
-    uint16_t sum {0};
-    for (; nwords > 0; --nwords)
-        sum += *buf++;
+    uint16_t* u16buf = static_cast<uint16_t*>(buf);
+    uint32_t sum = 0;
+
+    for (; len > 1; len -= 2)
+        sum += *u16buf++;
+    
+    if (len == 1)
+        sum += *reinterpret_cast<uint8_t*>(u16buf);
+
     sum = (sum >> 16) + (sum & 0xFFFF);
     sum += (sum >> 16);
-    return ~sum;
+
+    return static_cast<uint16_t>(~sum);
 }
 
 bool trace_route(const char* target, const char* netint, uint16_t hops)
@@ -61,14 +68,14 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         return false;
 	}
 
-    if (setsockopt(sockFD, SOL_SOCKET, SO_BINDTODEVICE, netint, sizeof(netint))) {
+    if (setsockopt(sockFD, SOL_SOCKET, SO_BINDTODEVICE, netint, sizeof(netint)+1)) {
         errmsg(std::strerror(errno));
         close(sockFD);
         return false;
     }
 
     // todo: check whether IP_HDRINCL is needed or not for this sockt
-    char bufo[65536], bufi[65536];
+    char bufo[4096], bufi[4096];
     sockaddr_in reply_sockaddrin;
     socklen_t reply_sockaddrin_len = sizeof(reply_sockaddrin);
 
@@ -84,10 +91,11 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         auto icmp_pack_o = reinterpret_cast<icmphdr*>(bufo);    //
         icmp_pack_o->type = ICMP_ECHO; // [0-8) ; request
         icmp_pack_o->code = 0u;   // [8-16)
-        icmp_pack_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(&icmp_pack_o), sizeof(icmp_pack_o)); // [16-32)
-        icmp_pack_o->un.echo.id = getpid(); // [[32-48)
+        icmp_pack_o->un.echo.id = getpid(); // [[32-48) // getpid() may be bad idea
         icmp_pack_o->un.echo.sequence = ttl; // [48-64)]
-        //puts("puts1()\n");
+        icmp_pack_o->checksum = 0;
+        icmp_pack_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmp_pack_o), sizeof(icmphdr)); // [16-32)
+
         auto time_start = std::chrono::high_resolution_clock::now();
         if (sendto(
              sockFD,    // socket file descriptor
@@ -102,11 +110,11 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
             continue;   // close(sockFD); return false;
         }
 
-        auto icmp_pack_i = reinterpret_cast<icmphdr*>(bufi);
+        auto icmp_pack_i = reinterpret_cast<icmphdr*>(bufi+20);
         if (recvfrom(
              sockFD,
-             &icmp_pack_i,
-             sizeof(icmp_pack_i),
+             &bufi,
+             sizeof(bufi),
              0, // no flags
              reinterpret_cast<sockaddr*>(&reply_sockaddrin), 
              &reply_sockaddrin_len
@@ -118,7 +126,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         auto end_time = std::chrono::high_resolution_clock::now();
         auto rtt = std::chrono::duration<float, std::milli>(end_time - time_start).count();
 
-        char ipstrbuf[INET_ADDRSTRLEN];
+        char ipstrbuf[INET_ADDRSTRLEN]{0};
         inet_ntop(
             AF_INET,
             reinterpret_cast<void*>(&reply_sockaddrin.sin_addr),
@@ -126,7 +134,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
             INET_ADDRSTRLEN
         );
 
-        char resolved_hostnamebuf[NI_MAXHOST]{};    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
+        char resolved_hostnamebuf[NI_MAXHOST]{0};    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
         if (getnameinfo(
              reinterpret_cast<sockaddr*>(&reply_sockaddrin),
              sizeof(reply_sockaddrin),
