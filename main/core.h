@@ -14,6 +14,7 @@
 #include <netdb.h>  // unix headers
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -21,8 +22,11 @@
 
 #define errmsg(type) fprintf(stderr, "%s():%d: %s\n", __func__, __LINE__, type)
 
-bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/* int& ipver,*/ char* resolved_ip);
-uint16_t calculate_checksum(void *buf, size_t len);
 bool trace_route(const char* target, const char* netint, uint16_t hops);
 
-constexpr auto PACKETSIZE = 64;
+bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/* int& ipver,*/ char* resolved_ip);
+uint16_t calculate_checksum(void *buf, size_t len);
+void setupsighandlers(void);
+bool setupsocket(int& fd, const char* netint, timeval& timeout);
+
+constexpr auto MAX_PACKET_SIZE = 65536u;  // max 
