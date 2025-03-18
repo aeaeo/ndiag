@@ -39,6 +39,19 @@ uint16_t calculate_checksum(void *buf, size_t len)
     return ~static_cast<uint16_t>(sum);
 }
 
+volatile bool gContinue = true;
+
+void setupsighandlers(void) {
+	struct sigaction act{};	// using c-style struct instance declaration since c++ one is ambiguous: struct 'sigaction' and function 'sigaction' have exact names
+	act.sa_handler = [](int sig) -> void {
+		if (sig == SIGINT || sig == SIGQUIT) {
+			gContinue = false;
+		}
+	};
+	sigaction(SIGINT, &act, nullptr);
+    sigaction(SIGQUIT, &act, nullptr);  // same as above
+}
+
 bool setupsocket(int& fd, const char* netint, timeval& timeout) {
     /*domain: INET, type: RAW, proto: ICMP*/
     // CAP_NET_RAW required
@@ -76,6 +89,8 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         return false;
     }
 
+    setupsighandlers();
+
     printf("Tracing route to %s (%s) with %hu hop(s) max\n", target, resolvedIP, hops);
 
     // todo: check whether IP_HDRINCL is needed or not for this sockt
@@ -85,7 +100,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
     sockaddr_in reply_sockaddrin;
     socklen_t reply_sockaddrin_len = sizeof(reply_sockaddrin);
 
-    for (uint16_t ttl = 1; ttl <= hops; ++ttl) {
+    for (uint16_t ttl = 1; ttl <= hops && gContinue; ++ttl) {
         using namespace std::chrono;
 
         memset(&bufo, '\0', sizeof(bufo));
