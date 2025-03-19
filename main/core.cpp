@@ -1,5 +1,7 @@
 #include "core.h"
 
+namespace ndiag {
+
 bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,*/ char* resolved_ip)
 {
     addrinfo addrreq {0};
@@ -85,7 +87,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         return false;
 
     if (!setupsocket(sockFD, netint, timeout)){
-        if (sockFD != -1) close(sockFD);
+        if (sockFD > 0) close(sockFD);
         return false;
     }
 
@@ -180,3 +182,4 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
 	close(sockFD);	// close fd
     return true;
 }
+};
