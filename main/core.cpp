@@ -54,7 +54,7 @@ void setupsighandlers(void) {
     sigaction(SIGQUIT, &act, nullptr);  // same as above
 }
 
-bool setupsocket(int& fd, const char* netint, timeval& timeout) {
+bool setupsocket(int& fd, const char* device, timeval& timeout) {
     /*domain: INET, type: RAW, proto: ICMP*/
     // CAP_NET_RAW required
 	fd = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
@@ -62,10 +62,12 @@ bool setupsocket(int& fd, const char* netint, timeval& timeout) {
         errmsg(std::strerror(errno));
         return false;
 	}
-
-    if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, netint, sizeof(netint)+1)) {
-        errmsg(std::strerror(errno));
-        return false;
+    
+    if (device != nullptr && device[0]) {
+        if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, device, IFNAMSIZ)) {
+            errmsg(std::strerror(errno));
+            return false;
+        }
     }
 
     if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout))) {
@@ -76,7 +78,7 @@ bool setupsocket(int& fd, const char* netint, timeval& timeout) {
     return true;
 }
 
-bool trace_route(const char* target, const char* netint, uint16_t hops)
+bool trace_route(const char* target, const char* device, uint16_t hops)
 {
 	sockaddr_in dest_sockaddrin {0};
     char resolvedIP[INET_ADDRSTRLEN];   // or inet6_addrstrlen for both support
@@ -86,7 +88,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
     if (!resolve_host(target, dest_sockaddrin, resolvedIP))
         return false;
 
-    if (!setupsocket(sockFD, netint, timeout)){
+    if (!setupsocket(sockFD, device, timeout)){
         if (sockFD > 0) close(sockFD);
         return false;
     }
@@ -117,7 +119,7 @@ bool trace_route(const char* target, const char* netint, uint16_t hops)
         icmp_pack_o->type = ICMP_ECHO; // [0-8) ; request
         icmp_pack_o->code = 0u;   // [8-16)
         icmp_pack_o->checksum = 0u; // [16-32)
-        icmp_pack_o->un.echo.id = getpid(); // [[32-48) // getpid() may be bad idea... or good?
+        icmp_pack_o->un.echo.id = getpid(); // [[32-48)
         icmp_pack_o->un.echo.sequence = ttl; // [48-64)]
         icmp_pack_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmp_pack_o), sizeof(icmphdr));
 
