@@ -24,7 +24,7 @@
 
 namespace ndiag {
 
-bool trace_route(const char* target, const char* device, uint16_t hops);
+bool trace_route(const char* target, const char* device, uint8_t hops);
 
 bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/* int& ipver,*/ char* resolved_ip);
 uint16_t calculate_checksum(void *buf, size_t len);

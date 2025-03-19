@@ -78,7 +78,7 @@ bool setupsocket(int& fd, const char* device, timeval& timeout) {
     return true;
 }
 
-bool trace_route(const char* target, const char* device, uint16_t hops)
+bool trace_route(const char* target, const char* device, uint8_t hops)
 {
 	sockaddr_in dest_sockaddrin {0};
     char resolvedIP[INET_ADDRSTRLEN];   // or inet6_addrstrlen for both support
@@ -95,7 +95,7 @@ bool trace_route(const char* target, const char* device, uint16_t hops)
 
     setupsighandlers();
 
-    printf("Tracing route to %s (%s) with %hu hop(s) max\n", target, resolvedIP, hops);
+    printf("Tracing route to %s (%s) with %hhu hop(s) max\n", target, resolvedIP, hops);
 
     // todo: check whether IP_HDRINCL is needed or not for this sockt
     char bufo[4096], bufi[4096];
@@ -104,14 +104,14 @@ bool trace_route(const char* target, const char* device, uint16_t hops)
     sockaddr_in reply_sockaddrin;
     socklen_t reply_sockaddrin_len = sizeof(reply_sockaddrin);
 
-    for (uint16_t ttl = 1; ttl <= hops && gContinue; ++ttl) {
+    for (uint8_t ttl = 1; ttl <= hops && gContinue; ++ttl) {
         using namespace std::chrono;
 
         memset(&bufo, '\0', sizeof(bufo));
         memset(&bufi, '\0', sizeof(bufi));
         memset(&reply_sockaddrin, 0, sizeof(reply_sockaddrin));
 
-        setsockopt(sockFD, IPPROTO_IP, IP_TTL, &ttl, sizeof(uint16_t)); // time to live attr
+        setsockopt(sockFD, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)); // time to live attr
 
         // ntk: sizeof(iphdr) = 24
 
@@ -120,7 +120,7 @@ bool trace_route(const char* target, const char* device, uint16_t hops)
         icmp_pack_o->code = 0u;   // [8-16)
         icmp_pack_o->checksum = 0u; // [16-32)
         icmp_pack_o->un.echo.id = getpid(); // [[32-48)
-        icmp_pack_o->un.echo.sequence = ttl; // [48-64)]
+        icmp_pack_o->un.echo.sequence = static_cast<uint16_t>(ttl); // [48-64)]
         icmp_pack_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmp_pack_o), sizeof(icmphdr));
 
         auto time_start = high_resolution_clock::now();
@@ -148,7 +148,7 @@ bool trace_route(const char* target, const char* device, uint16_t hops)
              &reply_sockaddrin_len
             ) < 0
         ) {
-            printf("ttl=%hu\t| recvfrom() error: %s\n", ttl, std::strerror(errno));
+            printf("ttl=%hhu\t| recvfrom() error: %s\n", ttl, std::strerror(errno));
             if (ttl+1 > hops) {
                 printf("Failed to reach %s (%s): Hops limit exceeded\n", target, resolvedIP);
                 break;
@@ -171,12 +171,12 @@ bool trace_route(const char* target, const char* device, uint16_t hops)
              0,
              0// no flags
         );
-        printf("ttl=%hu\t| %s (%s) |\trtt=%.4f ms\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt);
+        printf("ttl=%hhu\t| %s (%s) |\trtt=%.4f ms\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt);
 
         if (ttl+1 > hops) {
             printf("Failed to reach %s (%s): Hops limit exceeded\n", target, resolvedIP);
         } else if (icmp_pack_i->type == ICMP_ECHOREPLY) {
-            printf("Reached %s (%s) with %hu hop(s)\n", target, resolvedIP, ttl);
+            printf("Reached %s (%s) with %hhu hop(s)\n", target, resolvedIP, ttl);
             break;
         }
     }
