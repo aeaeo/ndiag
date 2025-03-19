@@ -43,15 +43,25 @@ uint16_t calculate_checksum(void *buf, size_t len)
 
 volatile bool gContinue = true;
 
-void setupsighandlers(void) {
+bool setupsighandlers(void) {
 	struct sigaction act{};	// using c-style struct instance declaration since c++ one is ambiguous: struct 'sigaction' and function 'sigaction' have exact names
-	act.sa_handler = [](int sig) -> void {
+	
+    act.sa_handler = [](int sig) -> void {
 		if (sig == SIGINT || sig == SIGQUIT) {
 			gContinue = false;
 		}
 	};
-	sigaction(SIGINT, &act, nullptr);
-    sigaction(SIGQUIT, &act, nullptr);  // same as above
+
+	if (sigaction(SIGINT, &act, nullptr)) {
+        errmsg(std::strerror(errno));
+        return false;
+    }
+    if (sigaction(SIGQUIT, &act, nullptr)) {
+        errmsg(std::strerror(errno));
+        return false;
+    }  // same as above
+
+    return true;
 }
 
 bool setupsocket(int& fd, const char* device, timeval& timeout) {
@@ -93,7 +103,8 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
         return false;
     }
 
-    setupsighandlers();
+    if (!setupsighandlers())
+        return false;
 
     printf("Tracing route to %s (%s) with %hhu hop(s) max\n", target, resolvedIP, hops);
 
