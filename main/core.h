@@ -29,10 +29,10 @@ bool trace_route(const char* target, const char* device, uint8_t hops);
 bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/* int& ipver,*/ char* resolved_ip);
 uint16_t calculate_checksum(void *buf, size_t len);
 bool setupsighandlers(void);
-bool setupsocket(int& fd, const char* device, timeval& timeout);
+bool setupsocket(int& fdoutput, const char* device, timeval& timeout);
 
+constexpr auto MAX_PACKET_SIZE { 256u };  // should be twice more than enough; may be defined somewhere else so placed it here
 };
 
-constexpr auto MAX_PACKET_SIZE = 65536u;  // max
-constexpr auto IFNAMSIZ {16};    // see https://elixir.bootlin.com/linux/v5.6/source/include/uapi/linux/if.h#L33
-constexpr auto HOPSDEFAULT {64};
+constexpr auto IFNAMSIZ { 16 };    // see https://elixir.bootlin.com/linux/v5.6/source/include/uapi/linux/if.h#L33
+constexpr auto HOPSDEFAULT { 64 };

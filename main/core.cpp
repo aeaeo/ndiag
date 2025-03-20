@@ -56,6 +56,7 @@ bool setupsighandlers(void) {
         errmsg(std::strerror(errno));
         return false;
     }
+    
     if (sigaction(SIGQUIT, &act, nullptr)) {
         errmsg(std::strerror(errno));
         return false;
@@ -65,14 +66,12 @@ bool setupsighandlers(void) {
 }
 
 bool setupsocket(int& fd, const char* device, timeval& timeout) {
-    /*domain: INET, type: RAW, proto: ICMP*/
-    // CAP_NET_RAW required
-	fd = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
+	fd = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);     // CAP_NET_RAW required
 	if (fd < 0) {
         errmsg(std::strerror(errno));
         return false;
 	}
-    
+
     if (device != nullptr && device[0]) {
         if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, device, IFNAMSIZ)) {
             errmsg(std::strerror(errno));
@@ -92,14 +91,14 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
 {
 	sockaddr_in dest_sockaddrin {0};
     char resolvedIP[INET_ADDRSTRLEN];   // or inet6_addrstrlen for both support
-    int sockFD {-1};
-    timeval timeout{1L, 0L};    // 1 s 0 μs
+    int fd {-1};    // file descriptors
+    timeval timeout{1L, 0L};    // == 1 s 0 μs
 
     if (!resolve_host(target, dest_sockaddrin, resolvedIP))
         return false;
 
-    if (!setupsocket(sockFD, device, timeout)){
-        if (sockFD > 0) close(sockFD);
+    if (!setupsocket(fd, device, timeout)){
+        if (fd > 0) close(fd);
         return false;
     }
 
@@ -108,8 +107,7 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
 
     printf("Tracing route to %s (%s) with %hhu hop(s) max\n", target, resolvedIP, hops);
 
-    // todo: check whether IP_HDRINCL is needed or not for this sockt
-    char bufo[4096], bufi[4096];
+    char bufo[ndiag::MAX_PACKET_SIZE], bufi[ndiag::MAX_PACKET_SIZE];
     char ipstrbuf[INET_ADDRSTRLEN];
     char resolved_hostnamebuf[NI_MAXHOST];    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
     sockaddr_in reply_sockaddrin;
@@ -118,26 +116,41 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
     for (uint8_t ttl = 1; ttl <= hops && gContinue; ++ttl) {
         using namespace std::chrono;
 
-        memset(&bufo, '\0', sizeof(bufo));
-        memset(&bufi, '\0', sizeof(bufi));
+        memset(bufo, '\0', sizeof(bufo));
+        memset(bufi, '\0', sizeof(bufi));
         memset(&reply_sockaddrin, 0, sizeof(reply_sockaddrin));
 
-        setsockopt(sockFD, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)); // time to live attr
+        setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)); // time to live attr
+        
+        /* decided not to use IP_HDRINCL sockopt in this program anymore because of no point
+           ...but i'll leave this piece here anyway
+        auto iphdr_o = reinterpret_cast<iphdr*>(bufo);
+        iphdr_o->ihl = 5u;  // 20
+        iphdr_o->version = 4u;
+        iphdr_o->tos = 0u;
+        iphdr_o->tot_len = htons(sizeof(iphdr) + sizeof(icmphdr));  // little-endian (intel) to big-endian
+        iphdr_o->id = htons(49999u + ttl);
+        iphdr_o->frag_off = htons(IP_DF);   // no packet fragmentation
+        iphdr_o->ttl = ttl;
+        iphdr_o->protocol = IPPROTO_ICMP;
+        iphdr_o->check = 0u;
+        inet_pton(AF_INET, "ipv4_address_of_given_network_interface", &(iphdr_o->saddr));   // it's getifaddrs() but how to get default one...
+        iphdr_o->daddr = static_cast<uint32_t>(dest_sockaddrin.sin_addr.s_addr);
+        iphdr_o->check = calculate_checksum(reinterpret_cast<uint16_t*>(iphdr_o), sizeof(iphdr));
+        */
 
-        // ntk: sizeof(iphdr) = 24
-
-        auto icmp_pack_o = reinterpret_cast<icmphdr*>(bufo);    //
-        icmp_pack_o->type = ICMP_ECHO; // [0-8) ; request
-        icmp_pack_o->code = 0u;   // [8-16)
-        icmp_pack_o->checksum = 0u; // [16-32)
-        icmp_pack_o->un.echo.id = getpid(); // [[32-48)
-        icmp_pack_o->un.echo.sequence = static_cast<uint16_t>(ttl); // [48-64)]
-        icmp_pack_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmp_pack_o), sizeof(icmphdr));
+        auto icmphdr_o = reinterpret_cast<icmphdr*>(bufo);    //
+        icmphdr_o->type = ICMP_ECHO; // [0-8) ; request
+        icmphdr_o->code = 0u;   // [8-16)
+        icmphdr_o->checksum = 0u; // [16-32)
+        icmphdr_o->un.echo.id = static_cast<uint16_t>(getpid()); // [[32-48)
+        icmphdr_o->un.echo.sequence = static_cast<uint16_t>(ttl); // [48-64)]
+        icmphdr_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmphdr_o), sizeof(icmphdr));
 
         auto time_start = high_resolution_clock::now();
         if (sendto(
-             sockFD,    // socket file descriptor
-             reinterpret_cast<void*>(&bufo),    // icmp packet
+             fd,    // socket file descriptor
+             reinterpret_cast<void*>(bufo),    // icmp packet
              sizeof(icmphdr),
              0, // no flags
              reinterpret_cast<sockaddr*>(&dest_sockaddrin),
@@ -147,52 +160,51 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
             printf("sendto() error: %s\n", std::strerror(errno));   // 
             continue;
         }
-
-        const auto icmp_pack_i_offset = bufi+sizeof(iphdr);
-        auto icmp_pack_i = reinterpret_cast<icmphdr*>(icmp_pack_i_offset);
+        
+        const auto icmp_pack_i = reinterpret_cast<icmphdr*>(bufi + sizeof(iphdr));
         if (recvfrom(
-             sockFD,
-             &bufi,
-             sizeof(bufi),
+             fd,
+             reinterpret_cast<void*>(bufi),
+             sizeof(iphdr) + sizeof(icmphdr),
              0, // no flags
              reinterpret_cast<sockaddr*>(&reply_sockaddrin), 
              &reply_sockaddrin_len
             ) < 0
         ) {
             printf("ttl=%hhu\t| recvfrom() error: %s\n", ttl, std::strerror(errno));
-            if (ttl+1 > hops) {
-                printf("Failed to reach %s (%s): Hops limit exceeded\n", target, resolvedIP);
+        }
+        else
+        {
+            auto end_time = high_resolution_clock::now();
+            auto rtt = duration<float, std::milli>(end_time - time_start).count();
+
+            memset(&ipstrbuf, '\0', sizeof(ipstrbuf));
+            inet_ntop(AF_INET, reinterpret_cast<void*>(&reply_sockaddrin.sin_addr), ipstrbuf, INET_ADDRSTRLEN);
+            
+            memset(&resolved_hostnamebuf, '\0', sizeof(resolved_hostnamebuf));
+            getnameinfo(
+                reinterpret_cast<sockaddr*>(&reply_sockaddrin),
+                sizeof(reply_sockaddrin),
+                resolved_hostnamebuf,
+                sizeof(resolved_hostnamebuf),
+                nullptr,
+                0,
+                0// no flags
+            );
+            printf("ttl=%hhu\t| %s (%s) |\trtt=%.3f ms\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt);
+            
+            if (icmp_pack_i->type == ICMP_ECHOREPLY) {
+                printf("Reached %s (%s) with %hhu hop(s)\n", target, resolvedIP, ttl);
                 break;
             }
-            continue;
         }
-        auto end_time = high_resolution_clock::now();
-        auto rtt = duration<float, std::milli>(end_time - time_start).count();
-
-        memset(&ipstrbuf, '\0', sizeof(ipstrbuf));
-        inet_ntop(AF_INET, reinterpret_cast<void*>(&reply_sockaddrin.sin_addr), ipstrbuf, INET_ADDRSTRLEN);
-        
-        memset(&resolved_hostnamebuf, '\0', sizeof(resolved_hostnamebuf));
-        getnameinfo(
-             reinterpret_cast<sockaddr*>(&reply_sockaddrin),
-             sizeof(reply_sockaddrin),
-             resolved_hostnamebuf,
-             sizeof(resolved_hostnamebuf),
-             nullptr,
-             0,
-             0// no flags
-        );
-        printf("ttl=%hhu\t| %s (%s) |\trtt=%.4f ms\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt);
-
         if (ttl+1 > hops) {
             printf("Failed to reach %s (%s): Hops limit exceeded\n", target, resolvedIP);
-        } else if (icmp_pack_i->type == ICMP_ECHOREPLY) {
-            printf("Reached %s (%s) with %hhu hop(s)\n", target, resolvedIP, ttl);
-            break;
         }
     }
 
-	close(sockFD);	// close fd
+    close(fd);	// close FD
+
     return true;
 }
 };
