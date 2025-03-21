@@ -9,12 +9,12 @@ int main(int argc, char** argv)
 		"Mandatory params:\n"
 		"\t-t\tSpecify the target. Must be a valid IPv4/FQDN.\n"
 		"Optional params:\n"
-		"\t-m\tSet the max number of hops. Default is 64.\n"
+		"\t-m\tSet the max number of hops. Range is 1-255. Default is 64.\n"
 		"\t-i\tSpecify the network interface to operate with. Default is used if not specified.\n";
 	
 	char target[NI_MAXHOST]{0};	// see man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
 	char device[IFNAMSIZ]{0};
-	uint8_t max_ttl {HOPSDEFAULT};
+	int max_ttl {HOPSDEFAULT};
 	int c{};
 
 	while ((c = getopt(argc, argv, "t:m:i:")) != -1) {
@@ -23,7 +23,7 @@ int main(int argc, char** argv)
 			if (optarg) std::strcpy(target, optarg);
 			break;
 		case 'm':
-			if (optarg) max_ttl = static_cast<uint8_t>(std::atoi(optarg));
+			if (optarg) max_ttl = std::clamp(std::atoi(optarg), 1, 255);
 			break;
 		case 'i':
 			if (optarg) std::strcpy(device, optarg);

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cstdio>	// c/cpp headers
+#include <algorithm>    // c/cpp headers
+#include <cstdio>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
