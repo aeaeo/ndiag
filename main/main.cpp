@@ -15,7 +15,7 @@ int main(int argc, char** argv)
 	char target[NI_MAXHOST]{0};	// see man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
 	char device[IFNAMSIZ]{0};
 	int max_ttl {HOPSDEFAULT};
-	int c{};
+	int c = 0;
 
 	while ((c = getopt(argc, argv, "t:m:i:")) != -1) {
 		switch (c) {
