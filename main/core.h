@@ -21,7 +21,18 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define errmsg(type) fprintf(stderr, "%s:%s():%d: %s\n", __FILE__, __func__, __LINE__, type)
+// finds filename at compile time
+constexpr const char* file_name(const char* path) {
+    const char* file = path;
+    while (*path) {
+        if (*path++ == '/') {
+            file = path;
+        }
+    }
+    return file;
+}
+
+#define errmsg(type) fprintf(stderr, "%s:%s():%d: %s\n", file_name(__FILE__), __func__, __LINE__, type)
 
 namespace ndiag {
 
