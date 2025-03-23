@@ -24,7 +24,7 @@ bool resolve_host(const char* target, sockaddr_in& dest_sockaddrin,/*int& ipver,
     return true;
 }
 
-uint16_t calculate_checksum(void *buf, size_t len)
+uint16_t calculate_internet_checksum(void *buf, size_t len)
 {
     uint16_t* u16buf = static_cast<uint16_t*>(buf);
     uint32_t sum = 0;
@@ -39,6 +39,17 @@ uint16_t calculate_checksum(void *buf, size_t len)
     sum += (sum >> 16);
 
     return ~static_cast<uint16_t>(sum);
+}
+
+void generate_cyclic_alphabet_msg(char* area, uint16_t payloadsize) {
+    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";   // test
+
+    if (!area || payloadsize <= 0 || payloadsize > ICMP_OUTPUT_MAX_PAYLOAD_SIZE)
+        return;
+
+    for (uint16_t i = 0; i <= payloadsize; ++i) {
+        area[i] = alphabet[i % (sizeof(alphabet) - 1)];
+    }
 }
 
 volatile bool gContinue = true;
@@ -87,8 +98,12 @@ bool setupsocket(int& fd, const char* device, timeval& timeout) {
     return true;
 }
 
-bool trace_route(const char* target, const char* device, uint8_t hops)
+bool trace_route(const char* target, const char* device, uint16_t opt_payload, uint8_t hops)
 {
+    struct icmppack : icmphdr {
+        char data[ICMP_OUTPUT_MAX_PAYLOAD_SIZE];
+    };
+
 	sockaddr_in dest_sockaddrin {0};
     char resolvedIP[INET_ADDRSTRLEN];   // or inet6_addrstrlen for both support
     int fd = -1; // file descriptor
@@ -105,13 +120,17 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
     if (!setupsighandlers())
         return false;
 
-    printf("Tracing route to %s (%s) with %hhu hop(s) max\n", target, resolvedIP, hops);
+    printf("Tracing route to %s (%s) with %hhu hop(s) max, %hu bytes of data, on interface %s\n", 
+        target, resolvedIP, hops, sizeof(icmphdr) + opt_payload, !device[0] ? "[default]" : device);
 
-    char bufo[ndiag::PACKET_OUTPUT_SIZE], bufi[ndiag::PACKET_INPUT_SIZE];
+    char bufo[PACKET_OUTPUT_SIZE], bufi[PACKET_INPUT_SIZE];
     char ipstrbuf[INET_ADDRSTRLEN];
     char resolved_hostnamebuf[NI_MAXHOST];    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
     sockaddr_in reply_sockaddrin;
     socklen_t reply_sockaddrin_len = sizeof(reply_sockaddrin);
+
+    // sizeof iphdr = 20
+    // sizeof icmphdr = 8
 
     for (uint8_t ttl = 1; ttl <= hops && gContinue; ++ttl) {
         using namespace std::chrono;
@@ -120,9 +139,9 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
         memset(bufi, '\0', sizeof(bufi));
         memset(&reply_sockaddrin, 0, sizeof(reply_sockaddrin));
 
-        setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)); // time to live attr
+        setsockopt(fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)); // time to live
 
-        /* not used
+        /* not used now
         auto iphdr_o = reinterpret_cast<iphdr*>(bufo);
         iphdr_o->ihl = 5u;  // 20
         iphdr_o->version = 4u;
@@ -138,33 +157,36 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
         iphdr_o->check = calculate_checksum(reinterpret_cast<uint16_t*>(iphdr_o), sizeof(iphdr));
         */
 
-        auto icmphdr_o = reinterpret_cast<icmphdr*>(bufo);    //
-        icmphdr_o->type = ICMP_ECHO; // [0-8) ; request
-        icmphdr_o->code = 0u;   // [8-16)
-        icmphdr_o->checksum = 0u; // [16-32)
-        icmphdr_o->un.echo.id = static_cast<uint16_t>(getpid()); // [[32-48)
-        icmphdr_o->un.echo.sequence = static_cast<uint16_t>(ttl); // [48-64)]
-        icmphdr_o->checksum = calculate_checksum(reinterpret_cast<uint16_t*>(icmphdr_o), sizeof(icmphdr));
+        auto icmp_pack_o = reinterpret_cast<icmppack*>(bufo);
+        icmp_pack_o->type = ICMP_ECHO; // [0-8) ; icmphdr start
+        icmp_pack_o->code = 0u;   // [8-16)
+        icmp_pack_o->checksum = 0u; // [16-32)
+        icmp_pack_o->un.echo.id = static_cast<uint16_t>(getpid()); // [[32-48)
+        icmp_pack_o->un.echo.sequence = htons(static_cast<uint16_t>(ttl)); // [48-64)] ; icmphdr end
+        if (opt_payload) generate_cyclic_alphabet_msg(icmp_pack_o->data, opt_payload);   // icmp data
+        icmp_pack_o->checksum = calculate_internet_checksum(reinterpret_cast<uint16_t*>(icmp_pack_o), sizeof(icmphdr) + opt_payload);
 
         auto time_start = high_resolution_clock::now();
 
-        if (sendto(
-             fd,    // socket file descriptor
-             reinterpret_cast<void*>(bufo),    // icmp packet
-             sizeof(icmphdr),
-             0, // no flags
-             reinterpret_cast<sockaddr*>(&dest_sockaddrin),
-             sizeof(sockaddr)
-            ) < 0
-        ) {
+        ssize_t send_bytes = sendto(
+            fd,    // socket file descriptor
+            reinterpret_cast<void*>(bufo),    // icmp packet
+            sizeof(icmphdr) + opt_payload,
+            0, // no flags
+            reinterpret_cast<sockaddr*>(&dest_sockaddrin),
+            sizeof(sockaddr)
+        );
+
+        if (send_bytes < 0)
+        {
             printf("\tttl=%hhu\tsendto(): %s\n", ttl, std::strerror(errno));   // 
             continue;
         }
         
-        auto recv_bytes = recvfrom(
+        ssize_t recv_bytes = recvfrom(
             fd,
             reinterpret_cast<void*>(bufi),
-            sizeof(bufi),//sizeof(iphdr) + sizeof(icmphdr),
+            sizeof(bufi),
             0, // no flags
             reinterpret_cast<sockaddr*>(&reply_sockaddrin), 
             &reply_sockaddrin_len
@@ -178,12 +200,12 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
         {
             auto end_time = high_resolution_clock::now();
             auto rtt = duration<float, std::milli>(end_time - time_start).count();
-            const auto icmp_pack_i = reinterpret_cast<icmphdr*>(bufi + sizeof(iphdr));
+            const auto icmp_pack_i = reinterpret_cast<icmppack*>(bufi + sizeof(iphdr));
 
-            memset(&ipstrbuf, '\0', sizeof(ipstrbuf));
+            memset(ipstrbuf, '\0', sizeof(ipstrbuf));
             inet_ntop(AF_INET, reinterpret_cast<void*>(&reply_sockaddrin.sin_addr), ipstrbuf, INET_ADDRSTRLEN);
             
-            memset(&resolved_hostnamebuf, '\0', sizeof(resolved_hostnamebuf));
+            memset(resolved_hostnamebuf, '\0', sizeof(resolved_hostnamebuf));
             getnameinfo(
                 reinterpret_cast<sockaddr*>(&reply_sockaddrin),
                 sizeof(reply_sockaddrin),
@@ -193,7 +215,7 @@ bool trace_route(const char* target, const char* device, uint8_t hops)
                 0,
                 0 // no flags
             );
-            
+
             printf("\tttl=%hhu\t%s\t(%s)\trtt=%.3f ms recieved=%d B\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt, recv_bytes);
             
             if (icmp_pack_i->type == ICMP_ECHOREPLY) {
