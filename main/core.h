@@ -21,7 +21,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-const char* file_name(const char* path) {
+constexpr const char* file_name(const char* path) {
     const char* file = path;
     while (*path) {
         if (*path++ == '/') {

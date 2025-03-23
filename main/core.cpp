@@ -182,7 +182,7 @@ bool trace_route(const char* target, const char* device, uint16_t opt_payload, u
             printf("\tttl=%hhu\tsendto(): %s\n", ttl, std::strerror(errno));   // 
             continue;
         }
-        
+
         ssize_t recv_bytes = recvfrom(
             fd,
             reinterpret_cast<void*>(bufi),
@@ -204,7 +204,7 @@ bool trace_route(const char* target, const char* device, uint16_t opt_payload, u
 
             memset(ipstrbuf, '\0', sizeof(ipstrbuf));
             inet_ntop(AF_INET, reinterpret_cast<void*>(&reply_sockaddrin.sin_addr), ipstrbuf, INET_ADDRSTRLEN);
-            
+
             memset(resolved_hostnamebuf, '\0', sizeof(resolved_hostnamebuf));
             getnameinfo(
                 reinterpret_cast<sockaddr*>(&reply_sockaddrin),
