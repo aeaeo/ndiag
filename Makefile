@@ -2,9 +2,10 @@ CPP = g++
 CPPFLAGS = -O2 -std=c++17 -Wall
 CPPLIBS = -lc -lstdc++
 
-ODIR = main/obj
+TARGET = ndiag
 CPPDIR = main
-HDIR = $(CPPDIR)	# same as .cpp's
+HDIR = $(CPPDIR)
+ODIR = main/obj
 
 $(shell mkdir -p $(ODIR))
 
@@ -15,13 +16,20 @@ _OBJ = core.o main.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 $(ODIR)/%.o: $(CPPDIR)/%.cpp $(DEPS)
+	@echo "Compiling $<"
 	$(CPP) $(CPPFLAGS) -c $< -o $@
 
-ndiag: $(OBJ)
+$(TARGET): $(OBJ)
+	@echo "Linking the executable"
 	$(CPP) $(CPPFLAGS) $(CPPLIBS) -o $@ $^
 
-.PHONY: clean
+.PHONY: clean setcaps
 
 clean:
-	rm -f $(ODIR)/*.o *~ ndiag $(CPPDIR)/*~ 
+	@echo "Cleaning up"
+	rm -f $(ODIR)/*.o *~ $(TARGET) $(CPPDIR)/*~ 
 	rmdir $(ODIR)
+
+setcaps:
+	@echo "Setting CAP_NET_RAW"
+	sudo setcap cap_net_raw=ep $(TARGET)
