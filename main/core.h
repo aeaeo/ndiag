@@ -43,9 +43,9 @@ void generate_cyclic_alphabet_msg(char* area, uint16_t payloadsize);
 bool setupsighandlers(void);
 bool setupsocket(int& fd, const char* device, timeval& timeout);
 
-constexpr int PACKET_OUTPUT_SIZE { 256 };
-constexpr int PACKET_INPUT_SIZE { 1024 };
-constexpr int ICMP_OUTPUT_MAX_PAYLOAD_SIZE { PACKET_OUTPUT_SIZE - (sizeof(iphdr) + sizeof(icmphdr)) }; // 256 - 28 = 228
+constexpr int MAX_PACKET_OUTPUT_SIZE { 256 };
+constexpr int MAX_PACKET_INPUT_SIZE { 1024 };
+constexpr int ICMP_OUTPUT_MAX_PAYLOAD_SIZE { MAX_PACKET_OUTPUT_SIZE - (sizeof(iphdr) + sizeof(icmphdr)) }; // 256 - 28 = 228
 constexpr int HOPSDEFAULT { 64 };
 };
 

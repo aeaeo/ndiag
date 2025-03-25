@@ -120,10 +120,10 @@ bool trace_route(const char* target, const char* device, uint16_t opt_payload, u
     if (!setupsighandlers())
         return false;
 
-    printf("Tracing route to %s (%s) with %hhu hop(s) max, %hu bytes of data, on interface %s\n", 
+    printf("Tracing route to %s (%s) with %hhu hop(s) max, %lu bytes of data (ICMP), on interface %s\n", 
         target, resolvedIP, hops, sizeof(icmphdr) + opt_payload, !device[0] ? "[default]" : device);
 
-    char bufo[PACKET_OUTPUT_SIZE], bufi[PACKET_INPUT_SIZE];
+    char bufo[MAX_PACKET_OUTPUT_SIZE], bufi[MAX_PACKET_INPUT_SIZE];
     char ipstrbuf[INET_ADDRSTRLEN];
     char resolved_hostnamebuf[NI_MAXHOST];    // from man getnameinfo: NI_MAXHOST is max value for socklen_t __hostlen arg value
     sockaddr_in reply_sockaddrin;
@@ -179,7 +179,7 @@ bool trace_route(const char* target, const char* device, uint16_t opt_payload, u
 
         if (send_bytes < 0)
         {
-            printf("\tttl=%hhu\tsendto(): %s\n", ttl, std::strerror(errno));   // 
+            printf("\t%hhu\tsendto(): %s\n", ttl, std::strerror(errno));   // 
             continue;
         }
 
@@ -194,7 +194,7 @@ bool trace_route(const char* target, const char* device, uint16_t opt_payload, u
 
         if (recv_bytes < 0)
         {
-            printf("\tttl=%hhu\trecvfrom(): %s\n", ttl, std::strerror(errno));
+            printf("\t%hhu\trecvfrom(): %s\n", ttl, std::strerror(errno));
         }
         else
         {
@@ -216,7 +216,7 @@ bool trace_route(const char* target, const char* device, uint16_t opt_payload, u
                 0 // no flags
             );
 
-            printf("\tttl=%hhu\t%s\t(%s)\trtt=%.3f ms recieved=%d B\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt, recv_bytes);
+            printf("\t%hhu\t%s\t(%s)\trtt=%.3f ms recieved=%ld B\n", ttl, ipstrbuf, resolved_hostnamebuf, rtt, recv_bytes);
             
             if (icmp_pack_i->type == ICMP_ECHOREPLY) {
                 printf("Reached %s (%s) with %hhu hop(s)\n", target, resolvedIP, ttl);
